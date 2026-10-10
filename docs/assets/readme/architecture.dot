@@ -1,0 +1,20 @@
+digraph G {
+  graph [rankdir=LR];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans"];
+  geometry [label="Geometry / mesh\nFE nodes V; elements E", fillcolor="#eaf1fb"];
+  fem [label="FEM + constitutive law\nEquilibrium; strain / stress at G", fillcolor="#e5f4ed"];
+  fatigue [label="Fatigue evolution\nHazard; irreversible history at G", fillcolor="#e5f4ed"];
+  observation [label="FE-to-DIC observation\nShape functions; irregular Q; covariance", fillcolor="#eaf1fb"];
+  inverse [label="Identifiability / inversion\nWhitened Jacobian; SVD; TRF", fillcolor="#fff2df"];
+  belief [label="Sequential belief\nPrefix MAP / optional Graph + GRU", fillcolor="#eee7f8"];
+  correction [label="Physics-guided correction\nA/m refit or bounded low-dimensional law", fillcolor="#fbe9e5"];
+  forecast [label="Future open-loop prediction\nRebuild history; solve FEM at new D", fillcolor="#e5f4ed"];
+  scope [label="Synthetic research scope\nTruth: generation / evaluation only\nRL NO-GO; no validated crack path / RUL", fillcolor="#fff2df"];
+  geometry -> fem;
+  fem -> fatigue;
+  fatigue -> observation;
+  observation -> inverse;
+  inverse -> belief;
+  belief -> correction;
+  correction -> forecast;
+}

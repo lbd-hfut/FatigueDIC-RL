@@ -1,0 +1,17 @@
+flowchart LR
+  geometry["Geometry / mesh<br/>FE nodes V; elements E"]
+  fem["FEM + constitutive law<br/>Equilibrium; strain / stress at G"]
+  fatigue["Fatigue evolution<br/>Hazard; irreversible history at G"]
+  observation["FE-to-DIC observation<br/>Shape functions; irregular Q; covariance"]
+  inverse["Identifiability / inversion<br/>Whitened Jacobian; SVD; TRF"]
+  belief["Sequential belief<br/>Prefix MAP / optional Graph + GRU"]
+  correction["Physics-guided correction<br/>A/m refit or bounded low-dimensional law"]
+  forecast["Future open-loop prediction<br/>Rebuild history; solve FEM at new D"]
+  scope["Synthetic research scope<br/>Truth: generation / evaluation only<br/>RL NO-GO; no validated crack path / RUL"]
+  geometry --> fem
+  fem --> fatigue
+  fatigue --> observation
+  observation --> inverse
+  inverse --> belief
+  belief --> correction
+  correction --> forecast

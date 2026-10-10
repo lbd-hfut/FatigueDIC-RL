@@ -218,3 +218,35 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Scientific outputs remain external SHA256-addressed research assets.
+/results/
+/checkpoints/
+/archives/
+/archive/
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Machine-local environments, credentials and editor/agent state.
+.venv*/
+.env.*
+!.env.example
+/.aws/
+/.ssh/
+/.codex/
+/.agents/
+/.vscode/
+/.idea/
+*.pem
+*.key
+credentials.json
+token.json
+tokens.json
+# Do not globally exclude json/csv/npz: small fixtures and manifests are source assets.

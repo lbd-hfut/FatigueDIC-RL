@@ -1,5 +1,8 @@
 name: Mechanics contracts and scientific verification
 
+permissions:
+  contents: read
+
 on:
   push:
   pull_request:
@@ -20,7 +23,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e '.[test,verification]'
-      - run: python -m pytest -q -W error
+      - name: Numerical regression (optional neural tests are explicitly reported as skipped)
+        run: PYTHONPATH=src python -m pytest -q -W error
       - run: python scripts/phase0_smoke.py --config configs/phase0.toml
       - run: python scripts/verify_phase1a.py --config configs/phase1/tri3_patch_test.toml --output "$RUNNER_TEMP/tri3-patch"
       - run: python scripts/verify_phase1a.py --config configs/phase1/uniaxial_tension.toml --output "$RUNNER_TEMP/tri3-uniaxial"
@@ -40,3 +44,25 @@ jobs:
           done
       - name: Phase 2A complete sequential belief scientific matrix
         run: python -W error scripts/verify_phase2a.py --all --output "$RUNNER_TEMP/phase2a"
+
+  complete-regression-with-pytorch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      PYTHONPATH: src
+      MPLCONFIGDIR: /tmp/fatiguedic-neural-matplotlib
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install explicit CPU PyTorch and numerical verification extras
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e '.[test,verification,neural]'
+      - name: Require the neural dependency before running the complete suite
+        run: python -c 'import torch; from fatigue_dic_rl.networks.temporal_gru import GraphRecurrentEstimator; print(torch.__version__)'
+      - name: Complete numerical and neural regression
+        run: python -m pytest -q -W error

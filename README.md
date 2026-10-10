@@ -1,206 +1,322 @@
 # FatigueDIC-RL
-Physics-Informed Reinforcement Learning for DIC-Observed Full-Field Fatigue Damage Evolution
 
-当前交付推进到 Phase 2C 的低维疲劳演化修正；未开展 RL。
-Phase 2A 保留 `PHASE2A_BELIEF_ESTIMATION_PARTIALLY_QUALIFIED` 及原89/100覆盖率证据。
-Phase 2B 资格、全部训练seed、校准与独立时间留出评价见正式报告。
+**DIC-Observed Physics-Guided Fatigue Damage Identification and Evolution**
 
-## Phase 2C：非RL物理演化修正
+[中文说明](README_CN.md) · [Methods](#mathematical-formulation) · [Verification](#verified-results) · [Limitations](#scope-and-limitations)
 
-资格为 `PHASE2C_PHYSICS_CORRECTION_PARTIALLY_QUALIFIED`。复用原不可逆 DamageTransition 与
-Tri3/FatigueEvolutionSolver，实现有界乘性 hazard、K=2/4/8 固定物理/空间basis、
-DIC-only 多步 TRF 与合成 positive-hazard 残差监督。候选参数从自身N0重演；
-N≤20同化，N30–220完全开环，参数失配、结构失配和状态估计误差分开评价。
+> **Research software / qualification notice.** The name preserves the original reinforcement-learning research vision, but **no RL policy has been scientifically qualified or deployed**. The current implementation contains a verified *scope-limited* finite-element/damage forward model, inverse DIC observation modeling, sequential belief estimation, graph-recurrent neural estimators, and low-dimensional physics-based damage-law correction. **RL remains NO-GO** pending stronger evidence of observability and decision value. Results below come from the documented **synthetic** benchmarks, not calibrated fatigue experiments.
 
-结构失配的高SNR受控分布中K2修正改善长期预测；仅参数失配时A/m重标定更准确。
-matched负对照、弱可辨识方向、未收敛OOD和未知载荷失败均保留，不授予概率coverage资格。
-Graph-conditioned extension与Phase2B state替代未执行；当前RL建议为NO-GO。
+## Overview
+
+Digital image correlation (DIC) measures surface displacement but does not directly measure an internal fatigue-damage state. This project studies a mechanics-constrained workflow for inferring low-dimensional initial-damage parameters and their physically evolved fields from irregular full-field DIC observations, tracking it through cyclic loading, diagnosing identifiability and model discrepancy, and predicting future responses. The objective is to separate **what the displacement data actually identify** from quantities inferred primarily through material priors.
+
+![Physics-guided fatigue damage workflow](docs/assets/readme/architecture.svg)
+
+The existing framework deliberately keeps the mechanics solver, fatigue constitutive law, observation operator, classical inverse solver, and learned estimator separate. Synthetic truth and observation-only inference have different data interfaces.
+
+## Mathematical formulation
+
+### FEM and constitutive mechanics
+
+The scope-qualified first model is small-strain, plane-stress, isotropic scalar damage on an unstructured triangular (Tri3) finite-element mesh:
+
+$$
+\boldsymbol\varepsilon=\tfrac12(\nabla\mathbf u+\nabla\mathbf u^\top),\quad
+\nabla\cdot\boldsymbol\sigma+\mathbf b=0,\quad
+\boldsymbol\sigma=(1-D)\mathbf C_0:\boldsymbol\varepsilon,\quad 0\le D<D_{\max}<1.
+$$
+
+The discrete equilibrium is
+
+$$
+\mathbf K(D)\mathbf u=\mathbf f,\qquad
+\mathbf K(D)=\sum_e\sum_{g\in e}t\,w_g\mathbf B_e^\top\mathbf C(D_g)\mathbf B_e.
+$$
+
+Here $t$ is thickness, $w_g$ is physical quadrature area, and $\mathbf B_e$ maps nodal displacement to engineering strain $[\varepsilon_{xx},\varepsilon_{yy},\gamma_{xy}]^\top$. The plane-stress undamaged tangent is
+
+$$
+\mathbf C_0=\frac{E_0}{1-\nu^2}
+\begin{bmatrix}1&\nu&0\\\nu&1&0\\0&0&(1-\nu)/2\end{bmatrix}.
+$$
+
+Sparse assembly, Dirichlet elimination, reactions and energy checks use the [Tri3 backend](src/fatigue_dic_rl/mechanics/tri3.py). The supports are explicit: FE nodes $V$ carry $u[V,2]$; elements $E$ carry connectivity $[E,3]$; quadrature points $G$ carry damage/history $D[G]$ and strain/stress $[G,3]$; DIC points $Q$ carry physical coordinates and displacement $[Q,2]$. These counts and locations are distinct, even when a particular Tri3 run has one quadrature point per element. Material internal state is stored at quadrature points; nodal FE fields, element fields, quadrature fields, and arbitrary DIC query points are not assumed to coincide. The simple stiffness law is one interchangeable constitutive model, **not** a claim that all fatigue damage is scalar elastic degradation.
+
+### Fatigue damage evolution
+
+A synthetic, energy-amplitude-driven benchmark law is used:
+
+$$
+\boldsymbol\varepsilon_a=(\boldsymbol\varepsilon_{max}-\boldsymbol\varepsilon_{min})/2,\qquad
+Y_a=\tfrac12\boldsymbol\varepsilon_a:\mathbf C_0:\boldsymbol\varepsilon_a,\qquad
+\lambda_{\mathrm{phys}}=A\left\langle\frac{Y_a}{Y_{\mathrm{ref}}}-\eta\right\rangle_+^m\exp(\beta_R R).
+$$
+
+Here $Y_a,Y_{\mathrm{ref}}$ have units N/mm², $A$ has units cycle⁻¹, and $m,\eta,\beta_R,R$ are dimensionless. $R$ is the declared minimum-to-maximum proportional loading ratio. Using the difference of endpoint energies would incorrectly remove the driver under fully reversed loading. The implementation is in [fatigue/models.py](src/fatigue_dic_rl/fatigue/models.py).
+
+The nonnegative hazard parameterization is integrated with an irreversible frozen-hazard update:
+
+$$
+D_{k+1}=D_{\max}-(D_{\max}-D_k)\exp(-\Delta N_k\lambda_k).
+$$
+
+Each accepted step solves the loading extrema on the *current* damage state, evaluates the driving force, updates damage, then **re-solves FEM at the new state**. Step rejection and material-history rollback are explicit. The update is exact only for a hazard frozen over that increment; nonlinear coupled fatigue evolution remains time-discretization dependent. This fatigue law is a reproducible **synthetic reference**, not a calibrated Lemaitre/Chaboche law.
+
+### DIC observation operator and likelihood
+
+$$
+\mathbf y_k^{\mathrm{DIC}}=\mathbf P_{\mathrm{FE}\to\mathrm{DIC}}\mathbf u_k^{\mathrm{FE}}+\boldsymbol\eta_k,
+\qquad
+\mathcal L_{\mathrm{obs}}=\tfrac12(\mathbf y^{\mathrm{pred}}-\mathbf y^{\mathrm{obs}})^\top\boldsymbol\Sigma^{-1}(\mathbf y^{\mathrm{pred}}-\mathbf y^{\mathrm{obs}}).
+$$
+
+The interpolation operator uses Tri3 shape functions at arbitrary physical query points. Explicit unit conversion, validity/ROI masks, per-component and spatially correlated covariance, and shared registration nuisance variables are supported in the verified settings. The statistical implementation uses covariance factorizations rather than materializing a dense inverse.
+
+For active observations, $\Sigma=LL^\top$ is measured in mm² and the Gaussian negative log likelihood is
+
+$$
+-\log p(\mathbf y\mid\theta)=\tfrac12\|L^{-1}(\widehat{\mathbf y}(\theta)-\mathbf y)\|^2
++\tfrac12\log\det\Sigma+\tfrac{n_{obs}}2\log(2\pi).
+$$
+
+An independent reaction residual uses its own uncertainty in N. The full covariance is restricted to active points **before** whitening; confidence scores are not inverse variances. Shared registration is a common nuisance parameter, not independent evidence repeated at each frame. See [covariance](src/fatigue_dic_rl/observations/covariance.py) and [forward adapter](src/fatigue_dic_rl/inverse/forward_adapter.py).
+
+### Damage identifiability
+
+$$
+J_w=L^{-1}\frac{\partial\widehat{\mathbf y}}{\partial\theta},\qquad
+F_{data}=J_w^\top J_w,\qquad J_w=USV^\top.
+$$
+
+Centered finite differences use bounded, dimensionless parameter coordinates. Data rank, weak/null directions and prior-constrained rank are reported separately. With a prior, $F_{post}=F_{data}+F_{prior}$; prior constraints are not new DIC information. A rank-deficient identifiable-subspace pseudoinverse is not a finite covariance in every parameter direction.
+
+A whitened sensitivity matrix $J_w=L^{-1}\partial\mathbf y/\partial\boldsymbol\theta$ and its singular spectrum are used to diagnose locally identifiable, weak, and null parameter directions. **Full numerical rank is not equivalent to accurate recovery**; the uniform relation $E_{\mathrm{eff}}=E_0(1-D)$ gives an exact modulus–damage confounding example.
+
+### Physics-based sequential belief estimation
+
+The first parameter space is $\theta=[d_0,A]$ with known $E_0$ and boundary conditions; Gaussian initial damage uses six spatial parameters; its amplitude is distinct from fatigue-law $A$, and evolved damage is not assumed to remain Gaussian. The belief concerns parameters, not arbitrary independent damage at $G$ points:
+
+$$
+b_k(\theta)=p(\theta\mid o_{0:k}),\qquad
+\widehat\theta_k=\arg\min_\theta\left\{
+\frac12\sum_{j=0}^k\|L_j^{-1}(\widehat o_j(\theta)-o_j)\|^2+\mathcal R_{prior}(\theta)\right\}.
+$$
+
+Prefix MAP uses the Phase 1C bounded SciPy TRF optimizer. Warm starts change initialization, while the fixed prior and each observed likelihood enter once. Every candidate rebuilds a consistent initial material history and rolls out the actual fatigue solver. Damage at the parameter mean is a plug-in estimate, not generally the posterior mean of damage. [MechanicsBelief](src/fatigue_dic_rl/inference/belief_state.py) records rank, uncertainty status and provenance; [sequential_map.py](src/fatigue_dic_rl/inference/sequential_map.py) publishes updates atomically.
+
+Pre-observation prediction, filtered estimates and future forecasts have explicit, distinct roles. For example, $N=0,10,20$ may be assimilated; $N=30,40$ then remain open-loop. No future DIC is used to correct those forecasts. The original shared-registration experiment achieved **89/100**, rather than 95/100, nominal 95% $d_0$ interval coverage; [the follow-up](docs/PHASE2A_UNCERTAINTY_FOLLOWUP.md) does not erase that result.
+
+### Graph-recurrent neural estimator
+
+Irregular DIC points define a coordinate-based graph; FE connectivity defines a separate graph. Mask-aware pooling or normalized shape-function aggregation transfers embeddings to FE nodes:
+
+$$
+\widetilde z_v=\frac{\sum_q P_{qv}z_q}{\sum_q P_{qv}},
+\qquad e_k=o_k-\widehat o_k^-,\quad r_k=L_k^{-1}e_k,
+$$
+
+with unsupported nodes masked. This aggregation is a feature operation, not covariance precision addition. Physics prediction uses the current parameter candidate. The causal network combines graph encodings, public loading, cycle count and $\Delta N$:
+
+$$
+z_k=Encoder(G_{DIC},G_{FE},r_k,\widehat o_k^-,\ell_k,N_k,\Delta N_k),\qquad
+h_k=GRU(h_{k-1},z_k),
+$$
+
+$$
+\widehat\zeta_k=\tanh(Head_\theta(h_k)),\qquad
+\Delta\zeta_k=\widehat\zeta_k-\widehat\zeta_{k-1},\qquad
+\widehat\theta_k=c+s\odot\widehat\zeta_k.
+$$
+
+Here $\zeta\in[-1,1]^K$ is the explicit dimensionless parameter coordinate. The implemented head emits a bounded new estimate and records the correction relative to the previous estimate. A Cholesky head gives $C_\zeta=TT^\top$ with positive diagonal. Its learned covariance is evaluated separately and is **not a calibrated mechanics posterior**. Updated parameters trigger a fresh consistent physics history.
+
+The starting architecture uses 64 hidden channels, three graph message-passing layers and one graph-level GRU. The optional native-PyTorch [network](src/fatigue_dic_rl/networks/temporal_gru.py) uses SiLU residual message passing and a graph-level GRU. Synthetic labels support supervised amortized inference; NumPy/SciPy FEM features are stop-gradient inputs. There is no claimed PyTorch differentiation through the sparse solver and no required PyTorch Geometric dependency.
+
+### Bounded damage-law correction
+
+For an imperfect physics prior, the research prototype considers
+
+$$
+\lambda_{\mathrm{hybrid}}=\lambda_{\mathrm{prior}}\exp\!\left[\alpha\tanh\!\left(\sum_{j=1}^{K}a_j\phi_j(\mathbf x,\mathbf s_k)\right)\right].
+$$
+
+The implemented energy basis uses $t_x=x/(1+x)$ and $\phi_j=t_x^j$ for $j=1,\ldots,K$, with $x=\langle Y_a/Y_{ref}-\eta\rangle_+$. Its multiplicative form cannot create damage where the prior hazard is exactly zero. See [correction_basis.py](src/fatigue_dic_rl/correction/correction_basis.py) and [HybridDamageLaw](src/fatigue_dic_rl/correction/hybrid_damage_law.py).
+
+The main tested correction is **low-dimensional** ($K=2$) and does not output a free damage action at every FE integration point. Physics-only, refitted $A$, refitted $(A,m)$, and DIC-only correction are separately evaluated. No trained actor–critic, SAC, TD3, or PPO result is claimed.
+
+### Model selection and experimental design
+
+Frozen B7 chooses among physics, $A/m$ refit and $K=2$ correction using allowed historical residuals and observability screens; B8 adds a historical gate. Phase 2E E9 is an independently named selection method. Designs compare uniform/random points, Fisher information and model discrimination under measurement/loading budgets. For two fitted candidate models,
+
+$$
+ d_w=L^{-1}(y_1-y_2),\qquad
+ d_\perp=(I-U_nU_n^\top)d_w,
+$$
+
+where $U_n$ is the resolved SVD basis of the whitened nuisance Jacobian. A large raw difference may disappear after load, modulus or registration adjustments. Local separation is a diagnostic, not a calibrated selection success probability. **ABSTAIN** is valid when information is insufficient. Static loading probes the current stiffness; fatigue excitation actually advances cycles and damage. Neither is an RL policy.
+
+## Implemented methods
+
+| Subsystem | Implemented scope | Primary documentation |
+|---|---|---|
+| Core fields and FE–DIC interfaces | Irregular meshes/observations, explicit field locations and units | `docs/` Phase 0 report |
+| Mechanics solver | Sparse Tri3 small-strain plane-stress FEM; BCs, loads, reactions, energy | [Phase 1A](docs/PHASE1A_MECHANICS_VERIFICATION_REPORT.md) |
+| Fatigue evolution | Proportional cyclic loading, quadrature history, nonnegative hazard, rollback | [Phase 1B](docs/PHASE1B_FATIGUE_EVOLUTION_REPORT.md) |
+| DIC inverse problem | Noise/covariance, parameterizations, Fisher/SVD, bounded TRF inversion | [Phase 1C](docs/PHASE1C_IDENTIFIABILITY_REPORT.md) |
+| Sequential belief | Prefix MAP, information rank, uncertainty diagnostics, temporal holdout | [Phase 2A](docs/PHASE2A_SEQUENTIAL_BELIEF_REPORT.md) |
+| Graph + GRU | Synthetic-supervised, graph-recurrent amortized estimator | [Phase 2B](docs/PHASE2B_GRAPH_RECURRENT_ESTIMATOR_REPORT.md) |
+| Physics correction | Global bounded low-rank correction and A/m calibration comparisons | [Phase 2C](docs/PHASE2C_PHYSICS_CORRECTION_REPORT.md) |
+| Selection / experimental design | Observability screens, matched controls, load/force/healthy reference diagnostics | [Phase 2D](docs/PHASE2D_ROBUSTNESS_AND_MODEL_SELECTION_REPORT.md), [Phase 2E](docs/PHASE2E_OBSERVABILITY_AND_DESIGN_REPORT.md), [Phase 2F](docs/PHASE2F_INFORMATION_SUFFICIENCY_REPORT.md) |
+
+## Verified results
+
+These are **specific benchmark results, not general performance guarantees**. Consult each linked report for the exact geometry, measurement noise, seed counts, discretization, and comparison budget.
+
+### 1. Tri3 FEM verification
+
+![Tri3 convergence on a manufactured solution](docs/assets/readme/tri3_convergence.png)
+
+In the tested smooth manufactured-solution problem, the final two mesh levels gave displacement and strain convergence rates of approximately **2.130** and **1.055**, respectively, consistent with first-order finite-element interpolation expectations. This does **not** establish convergence for material softening or cracks. See [Phase 1A](docs/PHASE1A_MECHANICS_VERIFICATION_REPORT.md).
+
+### 2. Coupled fatigue fields and identifiability
+
+![Actual fatigue damage and accumulated increment](docs/assets/readme/damage_evolution.png)
+
+The Phase 1B localized example evolves a continuous initial Gaussian field sampled at **16 centroid quadrature points** on 16 Tri3 elements, from $N=0$ to $N=40$. These are actual coupled FEM–damage fields, including accumulated increments. The coarse local model has explicit mesh sensitivity; this picture is not a crack-path prediction. [Phase 1B evidence](docs/PHASE1B_FATIGUE_EVOLUTION_REPORT.md).
+
+![Gaussian initial-damage parameter sensitivity at irregular DIC coordinates](docs/assets/readme/damage_identifiability.png)
+
+Phase 1C distinguishes the six initial Gaussian parameters through different displacement sensitivities at 64 irregular observation points. The [whitened spectrum](docs/assets/readme/identifiability_spectrum.svg) has numerical rank six, but only four singular values exceed the unit-noise scale. This illustrates why full rank is insufficient for accurate inversion. Unknown uniform modulus and damage can still be strictly equivalent. [Phase 1C evidence](docs/PHASE1C_IDENTIFIABILITY_REPORT.md).
+
+### 3. Damage-law correction under structural mismatch
+
+![Phase 2C structural mismatch comparison](docs/assets/readme/phase2c_structural_benchmark.png)
+
+In the **high-SNR synthetic structural-mismatch** study, five paired cases showed an approximately **82.7% median reduction** in long-horizon damage RMSE for a $K=2$ DIC-only correction relative to an $(A,m)$ refit. At $N=220$, mean damage RMSE is **0.0196014** (physics prior), **0.00201021** ($A/m$ refit), and **0.000350085** (DIC-only K2). The five cases share one structural-law family and are not five independent material mechanisms. The main observation noise was **$2\times10^{-7}$ mm (0.2 nm)**, an exceptionally favorable synthetic setting. In parameter-mismatch cases, classical $A/m$ refitting was more accurate; unnecessary correction can worsen correctly specified physics. See [Phase 2C](docs/PHASE2C_PHYSICS_CORRECTION_REPORT.md).
+
+### 4. Initial-state identifiability
+
+![Information rank from complementary observations](docs/assets/readme/phase2f_information_rank.png)
+
+For the **controlled uniform-damage, shared-modulus/load** three-parameter model, data-only information rank increased from **1/3** (DIC alone) to **2/3** when either an independent reaction or certified healthy reference was added, and to **3/3** with both. However, *unknown modulus transfer between healthy and damaged specimens* reintroduces ambiguity; the combined result is conditional, not a demonstration of general unique damage identification. See [Phase 2F](docs/PHASE2F_INFORMATION_SUFFICIENCY_REPORT.md) and [Validation readiness](docs/SCIENTIFIC_BASELINE_AND_VALIDATION_READINESS.md).
+
+### 5. Neural inference and independent testing
+
+- The Phase 2B graph-recurrent estimator gave an approximately **18.5×** speedup for a specified isolated-CPU parameter-belief benchmark, **while classical MAP remained more accurate**. This is not a guaranteed whole-pipeline acceleration.
+- Neural uncertainty was not reliably calibrated: in fixed-noise tests, nominal 95% coverage fell to **76%** for fatigue $A$ and **55%** for future $D_{40}$ in some settings.
+- Phase 2D evaluated 160 scientific cases, with no incorrect K2 activations among 40 matched controls. Structural selection improved future error in **6/8** historical identifiable cases (**75%**, below its predeclared 80% gate).
+- In Phase 2E independent structural design tests, the Fisher design met the structural benefit gate in **1/8** cases and the discrimination design in **0/8**.
+- Phase 2F and the subsequent readiness study showed that healthy-reference/force information helps initial-state inference but does not, by itself, distinguish the $(A,m)$ law family from low-rank $K=2$ corrections. The formal 100-world initial-state validation remains **NO-GO** pending transfer and sensor calibration.
+
+Detailed numerical evidence and qualifications: [2B](docs/PHASE2B_GRAPH_RECURRENT_ESTIMATOR_REPORT.md) · [2D](docs/PHASE2D_ROBUSTNESS_AND_MODEL_SELECTION_REPORT.md) · [2E](docs/PHASE2E_OBSERVABILITY_AND_DESIGN_REPORT.md) · [Readiness](docs/SCIENTIFIC_BASELINE_AND_VALIDATION_READINESS.md).
+
+### Verification status
+
+The publication rerun of `python -m pytest -q -W error` completed **514 tests with no skips in 490.64 s**, matching the latest readiness result; this is a reported frozen-source regression result, not a claim that every old expensive scientific CLI was rerun in that stage. Historical phase qualifications and limitations are retained in their original reports.
+
+## Installation and usage
+
+Requires **Python ≥3.11**. The base package depends on NumPy; sparse mechanics adds SciPy, scientific figures add Matplotlib, and tests add pytest. Dependency lower bounds are in [pyproject.toml](pyproject.toml); they are not a fully locked environment. The publication regression runs on Linux/Python 3.13.12, NumPy 2.4.4, SciPy 1.17.1 and an installed CPU-accessible PyTorch build.
 
 ```bash
+# Numerical environment; run from the repository root
+python -m venv .venv-numerics
+source .venv-numerics/bin/activate
+python -m pip install -e '.[test,verification]'
+PYTHONPATH=src python -m pytest -q -W error
+```
+
+The numerical installation **reports neural tests as skipped** if PyTorch is absent; it does not reproduce the full 514-test result. For the complete regression, use a separate neural environment:
+
+```bash
+python -m venv .venv-neural
+source .venv-neural/bin/activate
+python -m pip install -e '.[test,verification,neural]'
 PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m pytest -q -W error
-PYTHONPATH=src python scripts/train_phase2c.py --stage dataset --output results/reproduce2c/dataset
-PYTHONPATH=src python scripts/train_phase2c.py --stage supervised --dataset results/reproduce2c/dataset --output results/reproduce2c/training
 ```
 
-完整实验、时间收敛、原阶段科学回归和源码恢复证据见
-[Phase2C报告](docs/PHASE2C_PHYSICS_CORRECTION_REPORT.md)、
-[修正契约](docs/13_PHYSICS_CORRECTION_CONTRACTS.md)及
-[Git冻结建议](docs/GIT_PHASE2C_BASELINE_RECOMMENDATION.md)。结果写入新目录，不自动创建Git提交。
-
-## Phase 2B：非规则双图与循环 belief estimator
-
-DIC坐标kNN图、Tri3 FE图、global/形函数Pᵀ融合、因果GRU、低维参数与完整Cholesky
-不确定性头，共用Phase2A协议。候选参数更新后从N0重演物理history；N≤20观测同化，
-N30/40开环physics rollout。torch仅为可选 `.[neural]` 依赖，数值核心保持独立。
+Choose a PyTorch build suitable for your CPU/GPU. CUDA is optional and was unavailable to the recorded neural training runs. No training is needed for the following quick numerical examples. Each CLI rejects an existing output directory:
 
 ```bash
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m pytest -q
-PYTHONPATH=src python scripts/generate_phase2b_dataset.py --config configs/phase2b/uniform.toml --output results/reproduce-2b-data
-PYTHONPATH=src python scripts/train_phase2b.py --stage initial --dataset results/reproduce-2b-data --output results/reproduce-2b-initial
+FATIGUEDIC_DEMO=$(mktemp -d /tmp/fatiguedic-demo.XXXXXX)
+
+# Affine Tri3 patch: displacement, strain, reaction and equilibrium checks
+PYTHONPATH=src python -W error scripts/verify_phase1a.py \
+  --config configs/phase1/tri3_patch_test.toml \
+  --output "$FATIGUEDIC_DEMO/tri3-patch"
+
+# Coupled uniform fatigue evolution, force and displacement control
+PYTHONPATH=src python -W error scripts/verify_phase1b.py \
+  --config configs/phase1b/uniform_damage.toml \
+  --output "$FATIGUEDIC_DEMO/uniform-fatigue"
+
+# DIC inverse / identifiability: equivalent E0–damage solutions
+PYTHONPATH=src python -W error scripts/verify_phase1c.py \
+  --config configs/phase1c/uniform_confounding.toml \
+  --output "$FATIGUEDIC_DEMO/uniform-identifiability"
 ```
 
-训练、causal条件诊断、五seed checkpoint、calibration/test、OOD及完整历史科学CLI都保存于
-`results/phase2b/20261008T114713Z/`。所有输出需新目录；正式执行命令及配置见
-[Phase2B报告](docs/PHASE2B_GRAPH_RECURRENT_ESTIMATOR_REPORT.md) 和
-[神经接口契约](docs/12_NEURAL_BELIEF_CONTRACTS.md)。原共享配准的只读复核见
-[Phase2A uncertainty follow-up](docs/PHASE2A_UNCERTAINTY_FOLLOWUP.md)。
+Outputs include `summary.json`, copied configuration, solver logs and, depending on the case, numeric CSV/NPZ fields and PNG/SVG figures. The fatigue example saves mechanics/damage trajectories; the identifiability example records Jacobians, spectra and equivalent parameter solutions. A `PASSED` ambiguity diagnostic means the ambiguity was correctly detected, not uniquely solved. [CLI documentation](docs/PHASE1B_FATIGUE_EVOLUTION_REPORT.md) describes other frozen experiments; later statistical/training scripts can be substantially more expensive.
 
-## Phase 2A：物理序贯 belief estimation
+Real DIC ingestion requires calibrated physical coordinates/displacements, aligned axes, explicit units, valid/ROI masks, justified covariance and known loading. The code operates on irregular observations, not raw camera images. It does not perform image correlation, camera distortion correction or stereo reconstruction. Synthetic truth loaders must never supply inference features.
 
-在 Phase 1B/1C 上新增固定先验的 prefix MAP、warm/cold TRF 对照、候选独立疲劳重演、
-新损伤 FEM 预测、秩亏感知的局部 Gaussian 不确定性，以及 N≤20 同化、N=30/40 时间留出。
-保留 irregular DIC、共享配准 nuisance、prediction/filtered/forecast 标签和完整优化诊断。
+The CI has separate numerical and explicit-PyTorch regression jobs. Remote CI status must be checked for the published branch; local success is not evidence that every CI environment passed.
 
-```bash
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m pytest -q -W error
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONPATH=src python -W error scripts/verify_phase2a.py --all --output results/reproduce-phase2a
-```
-
-14 类科学配置在 `configs/phase2a/`；完整 matrix 含两组每情景100个种子的 CPU 校准实验。
-输出必须是新目录。见 [序贯 belief 契约](docs/11_SEQUENTIAL_BELIEF_CONTRACTS.md) 和
-[Phase 2A 报告](docs/PHASE2A_SEQUENTIAL_BELIEF_REPORT.md)。资格限于已验证的低维物理参数空间；
-模型失配导致的偏差和区间失效单独报告。该历史阶段未实现神经网络、RL 或 RUL。
-
-## Phase 1C：观测与低维反演
-
-新增显式 pixel/mm 标定、各向异性及空间协方差、配准 nuisance、连续损伤参数化、
-经过多步长检查的 FE 有限差分灵敏度、Fisher 零空间诊断和有界多初值 TRF 反演。
-观测接口没有损伤标签；真值只进入独立科学评价。未知 E0、边界幅值和稀疏采样
-造成的混淆均作为验证结果保存，不把低 DIC 误差解释为唯一恢复损伤。
-
-```bash
-python -m pip install -e '.[test,verification]'
-python -m pytest -q -W error
-PYTHONPATH=src python scripts/verify_phase1c.py --config configs/phase1c/uniform_confounding.toml --output results/reproduce-phase1c-confounding
-PYTHONPATH=src python scripts/verify_phase1c.py --config configs/phase1c/inverse_recovery.toml --output results/reproduce-phase1c-inverse
-```
-
-全部十类科学实验配置在 `configs/phase1c/`。结果必须写入新目录。
-见 [观测与反演契约](docs/10_DIC_INVERSE_CONTRACTS.md) 和
-[Phase 1C 报告](docs/PHASE1C_IDENTIFIABILITY_REPORT.md)。资格不表示任意损伤场可唯一恢复，
-不包含真实图像相关、实验噪声标定或网格客观局部化。本阶段完成后停止。
-
-## Phase 1A（历史基线）
-
-已增加真实的 SciPy sparse Tri3 平面应力求解器：常应变单元、独立积分布局、
-分区材料、固定损伤刚度、非零位移消元、牵引/节点力/体力、反力、能量与失败诊断。
-统一采用 mm、N、N/mm²、N/mm³、N·mm；旧 Pa 本构和 thickness_m 通过显式适配保留。
-工程剪切为 gamma_xy，不把 tensor epsilon_xy 当作工程剪切输入。
-
-```bash
-python -m pip install -e '.[test,verification]'
-python -m pytest -q -W error
-PYTHONPATH=src python scripts/verify_phase1a.py --config configs/phase1/tri3_patch_test.toml --output results/my-patch-run
-PYTHONPATH=src python scripts/verify_phase1a.py --config configs/phase1/uniaxial_tension.toml --output results/my-tension-run
-PYTHONPATH=src python scripts/verify_phase1a.py --config configs/phase1/damage_stiffness.toml --output results/my-fixed-damage-run
-PYTHONPATH=src python scripts/verify_phase1a.py --config configs/phase1/mesh_convergence.toml --output results/my-convergence-run
-```
-
-输出目录必须为新目录；脚本拒绝覆盖已有结果。核心仍只依赖 NumPy，只有 FE backend
-额外使用 SciPy，静态验证图额外使用 Matplotlib；不安装 CUDA、FEniCSx 或 RL 库。
-仅需 FE 时安装 `.[mechanics]`，需要完整测试与图表时安装 `.[test,verification]`。
-
-科学证据与限定见 [Phase 1A 报告](docs/PHASE1A_MECHANICS_VERIFICATION_REPORT.md)。
-Phase 1A 范围不包含疲劳损伤演化、真实 damage 反演、图像相关或 RL 训练。
-Phase 0 待提交工作区的完整快照、diff 与哈希保存在 `results/phase1a/baseline/`，未创建 Git commit。
-
-## Phase 1B：physics-only 疲劳演化
-
-新增积分点 `MaterialHistoryState`、比例 `FatigueLoadCycle`、振幅能量驱动力、
-可校准的合成 hazard 定律，以及带终点力学重求解和原子回滚的 `FatigueEvolutionSolver`。
-循环数 N 与保存帧数独立；synthetic truth 和 DIC 位移观测分别保存。
-定律未做真实材料标定；局部软化的网格敏感性显式记录，不解释为真实裂纹几何。
-
-```bash
-python -m pytest -q -W error
-PYTHONPATH=src python scripts/verify_phase1b.py --config configs/phase1b/synthetic_trajectory.toml --output results/reproduce-phase1b-synthetic
-PYTHONPATH=src python scripts/verify_phase1b.py --config configs/phase1b/temporal_convergence.toml --output results/reproduce-phase1b-temporal
-```
-
-输出目录必须不存在。配置在 `configs/phase1b/`；契约和验证证据见
-[疲劳耦合契约](docs/09_FATIGUE_EVOLUTION_CONTRACTS.md) 与
-[Phase 1B 报告](docs/PHASE1B_FATIGUE_EVOLUTION_REPORT.md)。本轮停止于 Phase 1B。
-
-## Phase 0（历史基线）
-
-本仓库目前提供可测试的科研架构基础：非规则二维网格、带位置和单位的物理场、
-真值/belief/预测状态区分、DIC 位移观测、三角形形函数映射、非负 hazard 损伤更新，
-以及独立的本构、求解器、估计器和 latent correction 接口。
-
-**截至 Phase 0，尚未实现 FE 求解器、损伤反演或 RL 训练。** Phase 0 smoke test 使用已知仿射位移场，
-验证解析插值与模块接口，不构成完整疲劳仿真或真实材料验证。
-
-## 运行
-
-核心运行依赖只有 NumPy，测试依赖 pytest；Python >= 3.11。
-使用独立虚拟环境，不需要 CUDA、PyTorch、FEniCSx 或强化学习库。
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e '.[test]'
-python -m pytest -q -W error
-python scripts/phase0_smoke.py --config configs/phase0.toml
-```
-
-环境已有 NumPy 和 pytest 时，无需安装即可运行源码：
-
-```bash
-python -m pytest -q -W error
-PYTHONPATH=src python scripts/phase0_smoke.py --config configs/phase0.toml
-```
-
-## 结构
+## Repository organization
 
 ```text
-configs/                 解析 smoke 配置
 src/fatigue_dic_rl/
-  core/                  FieldData、MechanicsState、载荷与位置契约
-  geometry/              tri3/quad4/混合网格拓扑和边界标签
-  materials/             本构、DamageLaw 和显式注册表
-  mechanics/             求解器契约和边界条件；无 FE backend
-  observations/          DICObservation、tri3 ObservationOperator
-  inference/             StateEstimator 接口
-  physics/               DamageTransition 和硬物理约束
-  rl/                    latent action 与 hazard correction 接口
-  networks/              DIC/FE图、形函数融合、GRU和参数/协方差头
-  environments/          真实物理环境与模型预测环境设计说明
-  world_models/          未来代理模型设计说明
-  datasets/              观测与 synthetic truth 隔离规范
-  training/              隔离synthetic数据、训练循环、loss与checkpoint
-  evaluation/            验证和资格边界说明
-  visualization/         网格/场可视化设计说明
-  smoke.py               确定性的解析模块 smoke
-scripts/                 smoke 命令行入口
-tests/{unit,integration,scientific}/
-docs/                    科学设计、验收矩阵与实施报告
-results/                 结果保存约定；本轮没有疲劳数据
+  core/           # field and state contracts
+  geometry/       # meshes, Tri3 geometry, quadrature
+  mechanics/      # FE solver interfaces and Tri3 backend
+  materials/      # constitutive models
+  fatigue/        # cyclic loading, history, damage-law evolution
+  observations/   # DIC mapping, covariance, registration
+  inverse/        # parameterizations, sensitivity, TRF inversion
+  inference/      # sequential and neural belief estimators
+  networks/       # optional irregular-graph and GRU components
+  correction/     # bounded law corrections, model selection
+  training/       # optional synthetic learning workflows
+  evaluation/     # scientific comparison and plotting
+configs/          # phase-specific frozen experiments
+scripts/          # verify, generate, train, evaluate, audit
+tests/           # unit / integration / scientific
+docs/             # methods and phase-specific evidence reports
 ```
 
-尚未开发的目录只有设计说明，没有虚假的空实现。
+## Scope and limitations
 
-## 数据与物理边界
+- **No scientifically qualified RL policy** or reliable policy-based experimental control. RL remains **NO-GO**.
+- The primary mechanics path is **2D Tri3, small-strain, isotropic plane-stress, scalar local damage**; no validated 3D, plasticity, contact, crack path, or real-material fatigue-life prediction.
+- The fatigue benchmark law and DIC noise models are **synthetic**, not calibrated to a laboratory material/camera.
+- Local damage localization has **mesh sensitivity**; mesh-objective localization is not qualified.
+- DIC-only inference can be **structurally non-identifiable**, especially for unknown $E_0$, damage and loading scales.
+- Additional healthy reference information is useful only under explicit material-transfer and measurement assumptions. Those nuisance effects are not yet adequately calibrated.
+- Amortized neural point estimates and approximate covariance are not interchangeable with a reliable posterior. OOD, clustered measurements, unknown loading and shared registration require care.
+- Formal independent 100-world readiness validation has **not started**.
 
-V、E、G、Q 分别表示节点、单元、积分点和观测点，数量独立。
-所有数值操作必须显式检查空间引用、位置、单位、坐标系和有效性。
-DICObservation 没有 damage 真值通道；观测元数据只允许采集信息。
+## Reproducibility and research assets
 
-DamageLaw 返回 hazard `lambda [cycle^-1]`；DamageTransition 在每个区间冻结 hazard，
-使用解析更新 `D_new = Dmax - (Dmax-D)*exp(-delta_cycles*lambda)`。
-损伤不下降且保持在 `[0,Dmax]`，非法输入会报错。该数值性质不证明疲劳模型正确。
+The Git repository is intended to contain source, small fixtures, tests, frozen configurations, methods and evidence indices. Original report links into `results/` refer to external research evidence and do not resolve in a source-only Git clone. Full public asset hosting is not yet confirmed; curated exact figure extracts and their source hashes are included. Generated FE fields, raw noisy trajectories, optimizer histories, large scientific runs and checkpoints remain in separately archived, SHA-256-verified scientific assets. Original phase reports preserve incomplete/negative results; figures in this README are curated summaries, **not new independent experiments**.
 
-`C(D)=(1-D)C0` 仅属于示例 `IsotropicPlaneStress`，没有写入 core。
-未来策略修正估计模型的 hazard，不直接控制真实试件。
+The original phase baselines were developed before formal Git commits. Preserve the documented Phase 2E/2F source manifests and use actual commit dates when importing consolidated baselines; do not fabricate historical stage commits. See the [scientific evidence index](docs/reproducibility/SCIENTIFIC_SOURCE_EVIDENCE.json), [figure provenance](docs/assets/readme/ASSET_PROVENANCE.md), [publication audit](docs/GITHUB_PUBLICATION_REPORT.md), [Git freeze readiness](docs/PHASE2E_GIT_FREEZE_READINESS.md) and [Validation readiness](docs/SCIENTIFIC_BASELINE_AND_VALIDATION_READINESS.md).
 
-从 [科学表述](docs/00_SCIENTIFIC_FORMULATION.md) 和
-[系统架构](docs/01_SYSTEM_ARCHITECTURE.md) 开始；
-验收证据见 [PHASE0_ACCEPTANCE](docs/PHASE0_ACCEPTANCE.md) 与
-[实施报告](docs/PHASE0_IMPLEMENTATION_REPORT.md)。
+## Citation and license
 
-## 扩展
+Code and project-generated figures are released under the **MIT License**; no third-party paper images are included. If you build on this project, please cite the repository and, when available, the associated peer-reviewed publication. A publication DOI and citation entry have **not** yet been declared here; please do not invent one. Cite the repository and the exact commit/tag used; there is no declared publication DOI:
 
-用 `DamageLaw._hazard` 增加物理模型，通过实例注册表注册；用
-`MechanicsSolver._solve` 增加经过独立验证的 backend。quad4 和混合单元能被 MeshData
-保存，但当前 ObservationOperator 会明确拒绝这些网格，需增加形函数适配器。
+```bibtex
+@misc{fatiguedicrl2026,
+  author = {FatigueDIC-RL contributors},
+  title = {FatigueDIC-RL: DIC-Observed Physics-Guided Fatigue Damage Identification and Evolution},
+  year = {2026},
+  howpublished = {\url{https://github.com/lbd-hfut/FatigueDIC-RL}},
+  note = {Research software; cite the source commit or scientific baseline tag}
+}
+```
 
-MIT License，保留原有 [LICENSE](LICENSE)。
+See [LICENSE](LICENSE).
+
+---
+
+*Research direction: DIC-observed internal-state identification and physics-constrained fatigue evolution. Reinforcement-learning extensions remain a research hypothesis, not a verified result.*

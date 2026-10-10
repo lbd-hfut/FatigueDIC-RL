@@ -1,0 +1,70 @@
+# Frozen before running this Development cost probe. NOT a formal test matrix.
+scope = "initial_uniform_static_damage_development_only"
+world_seeds = [282000, 282001, 282002, 282003, 282004, 282005]
+load_scales = [0.35, 0.7, 1.4]
+modulus_bounds = [1500.0, 2600.0]
+damage_bounds = [0.02, 0.30]
+load_factor_bounds = [0.85, 1.15]
+starts = [[0.0, 0.0, 0.0], [-0.55, 0.4, -0.35]]
+max_nfev = 60
+retry_max_nfev = 100
+reaction_relative_std = 0.01
+# Explicit covariance revision after retaining the failed pure-smooth cluster
+# experiment: 90% spatial covariance plus 10% independent measurement variance.
+spatial_independent_variance_fraction = 0.10
+healthy_damage_externally_known = true
+relative_field_tolerance = 1e-10
+absolute_field_tolerance = 1e-10
+jacobian_relative_tolerance = 2e-5
+fit_damage_tolerance_identifiable = 2e-5
+fit_relative_cost_tolerance = 1e-6
+negative_budget_probe_max_nfev = 1
+development_profile_damage_grid = [0.06, 0.10, 0.16, 0.22, 0.28]
+
+[[worlds]]
+Q = 16
+sampling = "random"
+sigma_mm = 0.00005
+spatial = false
+healthy_E_relative_difference = 0.0
+reaction_sensor_relative_bias = 0.0
+
+[[worlds]]
+Q = 16
+sampling = "regular"
+sigma_mm = 0.00005
+spatial = false
+healthy_E_relative_difference = 0.01
+reaction_sensor_relative_bias = 0.0
+
+[[worlds]]
+Q = 64
+sampling = "random"
+sigma_mm = 0.00025
+spatial = false
+healthy_E_relative_difference = -0.01
+reaction_sensor_relative_bias = 0.01
+
+[[worlds]]
+Q = 64
+sampling = "clustered"
+sigma_mm = 0.00005
+spatial = true
+healthy_E_relative_difference = 0.03
+reaction_sensor_relative_bias = -0.01
+
+[[worlds]]
+Q = 16
+sampling = "clustered"
+sigma_mm = 0.00025
+spatial = true
+healthy_E_relative_difference = -0.03
+reaction_sensor_relative_bias = 0.03
+
+[[worlds]]
+Q = 64
+sampling = "regular"
+sigma_mm = 0.00025
+spatial = false
+healthy_E_relative_difference = 0.0
+reaction_sensor_relative_bias = -0.03

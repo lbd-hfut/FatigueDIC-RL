@@ -1,0 +1,50 @@
+{
+  "scope": "Publication verification only; no new algorithms, training or formal 100-world validation",
+  "pytest": {
+    "command": "PYTHONPATH=src OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m pytest -q -W error",
+    "result": "514 passed; no skips",
+    "seconds": 490.64,
+    "log_sha256": "2c89728831586e190164924b451485c0425c40a0008dd9f877cf5ecb4bd1103d",
+    "artifact_path": "results/github_publication/20261010T030105Z/validation/pytest.txt"
+  },
+  "environment": {
+    "numpy": "2.4.4",
+    "scipy": "1.17.1",
+    "matplotlib": "3.10.9",
+    "pytest": "9.0.3",
+    "torch": "2.13.0",
+    "setuptools": "80.10.2",
+    "python": "3.13.12"
+  },
+  "readme_examples": {
+    "tri3-patch": {
+      "status": "PASS",
+      "summary_sha256": "2cbcb1f39510b7f1aa7ebf7f1b8029a3be4d4e1f77f3322588ce5a56887ae698",
+      "artifact_path": "results/github_publication/20261010T030105Z/validation/tri3-patch/summary.json"
+    },
+    "uniform-fatigue": {
+      "status": "PASS",
+      "summary_sha256": "66b535ce8e6d2a5cc14771282ad0455a8a2556c4b682a6c3600b1d462d98804a",
+      "artifact_path": "results/github_publication/20261010T030105Z/validation/uniform-fatigue/summary.json"
+    },
+    "uniform-confounding": {
+      "status": "PASSED",
+      "summary_sha256": "b47a60e0d2a487a6c61b07e1f88ed3de1fd481544d6c9ecd70f7f5b4673fdca8",
+      "artifact_path": "results/github_publication/20261010T030105Z/validation/uniform-confounding/summary.json"
+    },
+    "constant-hazard": {
+      "status": "PASS",
+      "summary_sha256": "0b974a06372686c997ec3bd1aaa7505218223ae8ce2b0c5b5107cad65cc7c24d",
+      "artifact_path": "results/github_publication/20261010T030105Z/validation/constant-hazard/summary.json"
+    }
+  },
+  "remote_ci": "Not yet independently observed for the final publication commit; explicit CPU PyTorch job configured; no silent-skip qualification",
+  "build": {
+    "build": "PASS (isolated source directory, no root metadata mutation)",
+    "wheel_name": "fatigue_dic_rl-0.1.0-py3-none-any.whl",
+    "wheel_sha256": "4b1951c2f10af92ce5ab83f45d89a371e785aec1d2584872a6968b5d5c6dd222",
+    "wheel_bytes": 283664,
+    "isolated_numerical_import": "PASS",
+    "torch_not_loaded": true
+  }
+}

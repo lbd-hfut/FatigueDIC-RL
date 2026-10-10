@@ -1,0 +1,74 @@
+{
+  "ASSET_PROVENANCE.md": {
+    "sha256": "bbcd7024deb935ae4f21eac1cdb08b1a45ba61508b32c0747476d72e8debba0e",
+    "bytes": 3979
+  },
+  "architecture.dot": {
+    "sha256": "02b021e2f76f4be6cc2695c4b3f778ab6f0a43d0d55bc38363faead4cc9c3622",
+    "bytes": 1205
+  },
+  "architecture.mmd": {
+    "sha256": "619c5d432e54f47a683b40eb4b144f78e3e1460340a15a2d0eff26bc7b36c6c9",
+    "bytes": 883
+  },
+  "architecture.png": {
+    "sha256": "f5827794ab07fae821a52a8af2f267e9c2abc8f30173318d66431b0b60364660",
+    "bytes": 144626
+  },
+  "architecture.svg": {
+    "sha256": "81a72091a5b50a36ad644bb8d95ebaa73377e352e3d6afa0350f4f8ad6bc5886",
+    "bytes": 14704
+  },
+  "damage_evolution.png": {
+    "sha256": "4997ece670017f5c70dbf03566b6ad8a00c234d13b79bf9de9ea5c180da8d0c6",
+    "bytes": 106975
+  },
+  "damage_evolution.svg": {
+    "sha256": "7ab1c308fa1df7184e2c79f4b37b38f8e5dc6a086d88eab74f2a2e2db209f0b9",
+    "bytes": 38082
+  },
+  "damage_identifiability.png": {
+    "sha256": "8ec9a4bc8d34c314bc4296e5dcc39e98776be8dcf1802194a45238cdd679b3e0",
+    "bytes": 198310
+  },
+  "damage_identifiability.svg": {
+    "sha256": "cea8617465ad567dad75583c6f51977b277823ef2cb18e7b932be03a3ea2a954",
+    "bytes": 116117
+  },
+  "figure_data.json": {
+    "sha256": "0846e9d7614ab24751bf1fc60a6ba7d4d5a6ccca23ec604f42160264567c2792",
+    "bytes": 26367
+  },
+  "identifiability_spectrum.png": {
+    "sha256": "dbad4586d76f447b1bb457c7d56ec435501398b2210bb41e6bea266aae03c49b",
+    "bytes": 54796
+  },
+  "identifiability_spectrum.svg": {
+    "sha256": "309852b7b64eef58aee0565fe01c77fb2169cae4dfab87f9efb2adc4813f1a7f",
+    "bytes": 15578
+  },
+  "phase2c_structural_benchmark.png": {
+    "sha256": "1eee0fd8c89d11b1df52cc1fd4b24b83e19fdedc9dc8de738155b059d4768243",
+    "bytes": 59838
+  },
+  "phase2c_structural_benchmark.svg": {
+    "sha256": "c64e2fe81d7c2d103d08856cfc970f7bccd25bcf7fbc5eb24cb739830c394c99",
+    "bytes": 16084
+  },
+  "phase2f_information_rank.png": {
+    "sha256": "9434742dfa79d3f4c259bf44504f63f0a605d577aa2c525e2be4cfccbc99244a",
+    "bytes": 43386
+  },
+  "phase2f_information_rank.svg": {
+    "sha256": "c3d261f384ed4bb909a17588412e3ea76f6011427b5d2e620a9a266559b3c635",
+    "bytes": 10791
+  },
+  "tri3_convergence.png": {
+    "sha256": "926977a148d68f874df381dd1dd276e9d626f3a96c8e937298ec8d344ba1c96d",
+    "bytes": 89627
+  },
+  "tri3_convergence.svg": {
+    "sha256": "ddb5557d2b5ba53a67a1307f220effead7be90b27d77163405b6b03bfa15e90c",
+    "bytes": 41532
+  }
+}

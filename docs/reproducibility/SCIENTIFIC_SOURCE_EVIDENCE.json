@@ -1,0 +1,53 @@
+{
+  "phase2e": {
+    "run_id": "20261009T061530Z",
+    "qualification": "PHASE2E_OBSERVABILITY_PARTIALLY_QUALIFIED",
+    "RL": "NO-GO",
+    "source_sha256": "0f98b2593cf9f73c6b03eef462f736aeaab52cf9720f3cd986fca9224e9a2ae5",
+    "source_files": 314,
+    "archive_sha256": "e5a6e140c6b3e6ae515b5ec03ceaf1b3d982eb2d2b29757ad34413571690214e",
+    "manifest_sha256": "9a8de2025b36c692ef539da965feb172d5a6953b71711caadf6a7385ab599d54",
+    "delivery_ledger_sha256": "c6fdd2f81f8ca7b2e9e2c1fba6ddaf0fe49176d80e60ea68f8ce217146c50cde",
+    "external_backup": "not confirmed; local assets retained",
+    "manifest_path": "results/phase2e/20261009T061530Z/final_source_verified/manifest.json",
+    "commit": "c52c635599d5b3fb7e24b61c54a9377f4c9ceede",
+    "annotated_tag": "scientific-baseline-phase2e-partially-qualified",
+    "tag_object": "84e56d7eb0d7af389df021974a9741f557907de8",
+    "git_manifest": "docs/reproducibility/phase2e_source_manifest.json"
+  },
+  "phase2f": {
+    "run_id": "20261010T010645Z",
+    "qualification": "PHASE2F_PILOT_PARTIALLY_QUALIFIED",
+    "RL": "NO-GO",
+    "source_sha256": "9083c806cbd0c141d45c16e88a462ce5f7ee16aefdba1f24d9b74fb60da011c2",
+    "source_files": 327,
+    "archive_sha256": "8211b2ed2c259f8f2cda95a647040b0458e8da6092357dd1841dd46d3b7dbadc",
+    "manifest_sha256": "939ef60c4c7d5e346cc27dbdff7a04ff337639eef1065e526a4c26efb8f36b06",
+    "delivery_ledger_sha256": "2d3ad368b0c95feb064996c08e6a153fc4244247c134a51a923789197207edfa",
+    "external_backup": "not confirmed; local assets retained",
+    "manifest_path": "results/phase2f/20261010T010645Z/final_source_verified/manifest.json",
+    "commit": "154e70eef2d857afc26e7882c341549e3984b1cb",
+    "annotated_tag": "scientific-baseline-phase2f-pilot-partially-qualified",
+    "tag_object": "a6bd960e13932b1108d5d26d6ae9f3ae5b53a2d2",
+    "git_manifest": "docs/reproducibility/phase2f_source_manifest.json"
+  },
+  "validation_readiness": {
+    "qualification": "VALIDATION_READINESS_PARTIALLY_QUALIFIED",
+    "source_files": 336,
+    "prepublication_source_sha256": "7a478794a750afa7dc48f99021b1d003c7c61b7a87ad597a8acc103b2dc06983",
+    "archive_sha256": "73b4c64b59bef97ee154ef55ce0ce2e741ec38c82ba2b1cc268b47c1cf477620",
+    "manifest_sha256": "5c80a0b6983c59c8ce0dec6b03eb338f926e45e83d1616e516ab10f141f7211d",
+    "run_id": "baseline_validation_readiness/20261010T021219Z",
+    "formal_100_worlds": "NOT EXECUTED / NO-GO",
+    "RL": "NO-GO"
+  },
+  "publication": {
+    "run_id": "github_publication/20261010T030105Z",
+    "original_head": "dc239d1b7b6dd1e44d93e71bdcccccc0f12e8bc9",
+    "branch": "feature/phase0-architecture",
+    "baseline_dates": "actual consolidated import dates; no fabricated history",
+    "final_full_payload_sha256": "computed from the actual final Git tree and stored in the external publication receipt; never reuse the 2E/2F hash",
+    "assets_distribution": "Only curated figure data and source manifests ship in Git. Complete results/checkpoints remain excluded; public external archive not confirmed.",
+    "frozen_metadata_exception": "Exact 314-file historical baseline includes five small textual egg-info files; retained for source SHA equality."
+  }
+}
