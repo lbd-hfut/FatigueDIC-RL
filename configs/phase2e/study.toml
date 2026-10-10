@@ -1,0 +1,38 @@
+[design]
+amplitudes = [0.25, 0.4, 0.7, 1.0]
+stress_ratios = [-1.0, 0.0]
+strategies = ["fixed", "uniform", "random", "fisher", "discrimination"]
+new_DIC_points = 16
+new_fatigue_cycles_per_specimen = 10.0
+max_damage = 0.6
+max_nominal_stress_n_mm2 = 35.0
+step_cycles = 2.0
+max_nfev = 80
+secondary_reaction_cases = ["p2e-development-007", "p2e-test-034", "p2e-test-035", "p2e-test-036", "p2e-test-037"]
+reaction_cost_units_per_scalar = 2
+
+[selection]
+name = "E9_PROJECTED_VALIDATION"
+decision_z = 2.3263478740408408
+minimum_separation = 3.0
+minimum_box_singular = 3.0
+physics_adequacy_sigma = 3.0
+note = "Conditional plug-in screen; NOT a posterior model probability or exact composite-hypothesis test."
+
+[statistics]
+bootstrap_seed = 241001
+bootstrap_repeats = 10000
+conditional_measurement_MC = 2000
+unit = "independent physical world; all five specimens, design arms and frames remain paired within world"
+target_overall_Wilson_half_width = 0.15
+test_worlds = 40
+subgroup_precision = "8 primary worlds per family; 2 per OOD family/uncertain-observation condition; insufficient for universal reliability"
+
+[qualification]
+matched_mean_excess_upper95 = 0.001
+matched_max_excess = 0.01
+matched_false_K2_Wilson_upper95 = 0.10
+structural_improvement_fraction = 0.80
+structural_median_ratio_vs_equal_design_B7 = 0.90
+minimum_absolute_gain = 0.001
+note = "All structural worlds included, including ABSTAIN and failures. Underpowered negative-control CI can only receive partial qualification."

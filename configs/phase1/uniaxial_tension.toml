@@ -1,0 +1,16 @@
+case = "uniaxial"
+
+[material]
+young_modulus_n_per_mm2 = 70000.0
+poisson_ratio = 0.3
+
+[geometry]
+width_mm = 10.0
+height_mm = 4.0
+thickness_mm = 0.8
+nx = 6
+ny = 4
+seed = 23
+
+[verification]
+traction_n_per_mm2 = 10.0

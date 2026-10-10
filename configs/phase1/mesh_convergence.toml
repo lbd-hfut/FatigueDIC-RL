@@ -1,0 +1,18 @@
+case = "convergence"
+
+[material]
+young_modulus_n_per_mm2 = 2000.0
+poisson_ratio = 0.3
+
+[geometry]
+thickness_mm = 0.8
+
+[verification]
+amplitude_mm = 0.001
+refinements = [4, 8, 16, 32]
+seed = 19
+
+[solver]
+load_quadrature_order = 5
+residual_atol_n = 1e-9
+residual_rtol = 1e-10

@@ -1,0 +1,20 @@
+case = "noise_covariance"
+
+[geometry]
+nx = 6
+ny = 3
+seed = 19
+
+[observation]
+mm_per_pixel = 0.025
+noise_pixels = [0.0, 0.01, 0.03, 0.05]
+counts = [16, 64, 256]
+missing_fractions = [0.0, 0.1, 0.3]
+
+[verification]
+seeds = [101, 202, 303]
+noise_repeats = 2000
+meshes = [[4, 2], [8, 4], [12, 6]]
+
+[optimization]
+max_nfev = 120

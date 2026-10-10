@@ -1,0 +1,22 @@
+case = "patch"
+
+[material]
+young_modulus_n_per_mm2 = 70000.0
+poisson_ratio = 0.3
+
+[geometry]
+thickness_mm = 0.8
+width_mm = 2.3
+height_mm = 1.1
+
+[verification]
+meshes = [[3, 3], [5, 4]]
+mesh_seeds = [11, 48]
+affine_coefficients = [[0.017, 0.0012, -0.0007], [-0.023, 0.0004, -0.0003]]
+rigid_mesh = [4, 3]
+rigid_seed = 72
+rigid_coefficients = [[0.017, 0.0, -0.002], [-0.023, 0.002, 0.0]]
+
+[solver]
+residual_atol_n = 1e-9
+residual_rtol = 1e-10

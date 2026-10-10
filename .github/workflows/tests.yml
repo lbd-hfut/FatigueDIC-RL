@@ -1,0 +1,42 @@
+name: Mechanics contracts and scientific verification
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scientific-tests:
+    runs-on: ubuntu-latest
+    env:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MPLCONFIGDIR: /tmp/fatiguedic-matplotlib
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e '.[test,verification]'
+      - run: python -m pytest -q -W error
+      - run: python scripts/phase0_smoke.py --config configs/phase0.toml
+      - run: python scripts/verify_phase1a.py --config configs/phase1/tri3_patch_test.toml --output "$RUNNER_TEMP/tri3-patch"
+      - run: python scripts/verify_phase1a.py --config configs/phase1/uniaxial_tension.toml --output "$RUNNER_TEMP/tri3-uniaxial"
+      - run: python scripts/verify_phase1a.py --config configs/phase1/damage_stiffness.toml --output "$RUNNER_TEMP/tri3-damage"
+      - run: python scripts/verify_phase1a.py --config configs/phase1/mesh_convergence.toml --output "$RUNNER_TEMP/tri3-convergence"
+      - name: Phase 1B fatigue scientific CLI experiments
+        run: |
+          for config in configs/phase1b/*.toml; do
+            case_name=$(basename "$config" .toml)
+            python -W error scripts/verify_phase1b.py --config "$config" --output "$RUNNER_TEMP/phase1b-$case_name"
+          done
+      - name: Phase 1C observation and inverse scientific CLI experiments
+        run: |
+          for config in configs/phase1c/*.toml; do
+            case_name=$(basename "$config" .toml)
+            python -W error scripts/verify_phase1c.py --config "$config" --output "$RUNNER_TEMP/phase1c-$case_name"
+          done
+      - name: Phase 2A complete sequential belief scientific matrix
+        run: python -W error scripts/verify_phase2a.py --all --output "$RUNNER_TEMP/phase2a"

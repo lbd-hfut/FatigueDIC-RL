@@ -1,0 +1,14 @@
+case = "fatigue_sequential"
+
+[geometry]
+nx = 6
+ny = 3
+seed = 19
+
+[observation]
+count = 16
+frame_noise = "conditionally_independent_given_shared_parameters"
+
+[optimization]
+max_nfev = 120
+

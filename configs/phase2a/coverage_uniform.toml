@@ -1,0 +1,21 @@
+case = "coverage_uniform"
+
+[geometry]
+nx = 6
+ny = 3
+seed = 19
+
+[observation]
+count = 16
+frame_noise = "conditionally_independent_given_shared_parameters"
+
+[optimization]
+max_nfev = 120
+
+[calibration]
+seeds = 100
+first_seed = 1000
+workers = 4
+sigma_mm = 0.00005
+scenarios = ["independent", "spatial", "registration", "loading", "wrong_prior", "wrong_boundary"]
+

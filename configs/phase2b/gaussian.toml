@@ -1,0 +1,39 @@
+case = "gaussian_known_fatigue"
+[dataset]
+train = 128
+validation = 32
+calibration = 32
+test = 32
+first_seed = 61000
+workers = 4
+observation_counts = [64]
+mesh_nx = [4,6]
+d0_range = [0.04,0.28]
+fatigue_A_range = [0.0006,0.0024]
+sigma_range_mm = [0.000005,0.00002]
+cycles = [0.0,10.0,20.0,30.0,40.0]
+assimilation = [0.0,10.0,20.0]
+forecast = [30.0,40.0]
+[network]
+hidden_channels = 64
+graph_layers = 3
+gru_layers = 1
+fusion = "shape"
+parameter_names = ["d_base","amplitude","xc","yc","sx","sy"]
+[training]
+seeds = [71001,71002,71003,71004,71005]
+epochs = 120
+patience = 20
+batch_size = 32
+learning_rate = 0.001
+gradient_clip = 1.0
+weight_decay = 0.0001
+covariance_epochs = 40
+threads = 1
+[evaluation]
+baseline_test_cases = 4
+ood_cases_per_scenario = 0
+ood_first_seed = 81000
+parameter_recovery_d0_rmse_gate = 0.03
+parameter_recovery_A_rmse_gate = 0.0005
+forecast_damage_rmse_gate = 0.05

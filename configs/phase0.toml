@@ -1,0 +1,9 @@
+# Only analytic-interface smoke settings; no training or FE-backend settings.
+[damage]
+dmax = 0.95
+hazard_per_cycle = 0.002
+cycle_steps = [0.0, 1.0, 10.0, 100.0, 1000.0]
+
+[observation]
+coordinate_units = "mm"
+coordinate_system = "specimen"

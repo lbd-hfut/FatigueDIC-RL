@@ -1,0 +1,47 @@
+case = "mesh_sensitivity"
+
+[geometry]
+nx = 4
+ny = 2
+width_mm = 2.0
+height_mm = 1.0
+thickness_mm = 0.8
+seed = 19
+jitter = 0.18
+
+[material]
+young_modulus_n_per_mm2 = 2000.0
+poisson_ratio = 0.3
+
+[initial]
+damage = 0.05
+damage_max = 0.95
+imperfection_amplitude = 0.22
+sigma_x_mm = 0.28
+sigma_y_mm = 0.22
+
+[loading]
+R = -1.0
+traction_n_per_mm2 = 10.0
+extension_mm = 0.01
+delta_N = 2.0
+total_N = 100.0
+
+[fatigue_law]
+A_per_cycle = 0.002
+Y_ref_n_per_mm2 = 0.025
+eta = 0.0
+m = 1.0
+beta_R = 0.0
+
+[evolution]
+max_delta_damage_per_step = 0.03
+max_step_subdivisions = 8
+minimum_cycle_increment = 1e-8
+adaptive_subdivision = true
+energy_identity_rtol = 2e-10
+
+[verification]
+hazard_per_cycle = 0.001
+mesh_nx = [4, 8, 16]
+damage_threshold = 0.5

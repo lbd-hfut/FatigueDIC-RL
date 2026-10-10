@@ -1,0 +1,30 @@
+# Frozen before OOD generation/evaluation. Mesh reference seeds are paired only.
+[independent_noise]
+sigma_mm = 0.00005
+[spatial_noise]
+sigma_mm = 0.00005
+spatial = true
+[registration_bias]
+registration = true
+[unknown_loading]
+load_bias = 1.07
+[cross_mesh]
+nx = 6
+ny = 3
+[cross_geometry]
+width = 3.0
+height = 0.7
+[heldout_E]
+E = 2600.0
+[stress_ratio_zero]
+R = 0.0
+[different_d0]
+d0 = 0.24
+[structural_beta8]
+beta = 8.0
+[structural_form2]
+structural_power = 2
+[spatial_discrepancy]
+spatial_strength = 0.3
+nx = 4
+ny = 2

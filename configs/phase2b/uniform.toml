@@ -1,0 +1,42 @@
+case = "uniform_fatigue"
+[dataset]
+train = 512
+validation = 64
+calibration = 128
+test = 128
+first_seed = 31000
+workers = 4
+observation_counts = [16,64]
+mesh_nx = [2,4]
+d0_range = [0.04,0.28]
+fatigue_A_range = [0.0006,0.0024]
+sigma_range_mm = [0.00002,0.00008]
+cycles = [0.0,10.0,20.0,30.0,40.0]
+assimilation = [0.0,10.0,20.0]
+forecast = [30.0,40.0]
+[network]
+hidden_channels = 64
+graph_layers = 3
+gru_layers = 1
+fusion = "shape"
+parameter_names = ["d0","A"]
+[training]
+seeds = [41001,41002,41003,41004,41005]
+epochs = 160
+patience = 25
+minimum_recurrent_point_epochs = 80
+batch_size = 32
+learning_rate = 0.001
+gradient_clip = 1.0
+weight_decay = 0.0001
+covariance_epochs = 60
+threads = 1
+[evaluation]
+baseline_test_cases = 16
+ood_cases_per_scenario = 12
+ood_first_seed = 51000
+parameter_recovery_d0_rmse_gate = 0.03
+parameter_recovery_A_rmse_gate = 0.0005
+forecast_damage_rmse_gate = 0.05
+fixed_noise_first_seed = 53000
+fixed_noise_seeds = 100

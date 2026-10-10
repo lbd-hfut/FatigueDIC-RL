@@ -1,0 +1,44 @@
+# Frozen before formal training/calibration/test evaluation. CPU scientific prototype.
+[physics]
+A_prior = 0.00008
+m_prior = 1.0
+Y_ref = 0.025
+beta_structural = 3.0
+load_scales = [0.15,0.35,0.7,1.4,2.8]
+future_load_factor = 0.25
+stress_ratio = -1.0
+cycle_step = 2.0
+assimilation_cycles = [0.0,10.0,20.0]
+forecast_cycles = [30.0,40.0,50.0,70.0,120.0,220.0]
+[dataset]
+regimes = ["matched","wrong_A","wrong_m","wrong_Am","structural"]
+train = 8
+validation = 3
+calibration = 3
+test = 5
+train_first_seed = 81000
+validation_first_seed = 82000
+calibration_first_seed = 83000
+test_first_seed = 84000
+sigma_mm = 0.0000002
+workers = 3
+[training]
+seeds = [85000,85001,85002,85003,85004]
+dimensions = [2,4,8]
+primary_supervised_dimension = 4
+alpha = 2.0
+maximum_epochs = 1600
+patience = 150
+learning_rate = 0.02
+coefficient_regularization = 0.001
+maximum_nfev = 80
+[qualification]
+structural_median_forecast_ratio_to_refit_Am = 0.9
+structural_minimum_improved_cases = 4
+structural_maximum_case_ratio = 1.25
+matched_neutral_oracle_factor_tolerance = 0.0002
+no_probability_coverage_qualification = true
+[ood]
+first_seed = 87000
+cases_per_scenario = 2
+scenarios = ["independent_noise","spatial_noise","registration_bias","unknown_loading","cross_mesh","cross_geometry","heldout_E","stress_ratio_zero","different_d0","structural_beta8","structural_form2","spatial_discrepancy"]

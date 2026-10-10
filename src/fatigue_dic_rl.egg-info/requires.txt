@@ -1,0 +1,11 @@
+numpy>=1.24
+
+[mechanics]
+scipy>=1.10
+
+[test]
+pytest>=7
+
+[verification]
+scipy>=1.10
+matplotlib>=3.7

@@ -1,0 +1,16 @@
+# Independent no-noise pilot seed80000 showed A at original upper bound2e-4.
+# Expanded PRIOR search only; no test-case/noise/model/weight changes.
+# All B1/B2 results are re-run and replace bounded-search rows in fair comparison.
+[parameter_search]
+A_lower = 0.00001
+A_upper = 0.0005
+m_lower = 0.6
+m_upper = 1.6
+max_nfev = 80
+initial_d0 = 0.12
+initial_A = 0.00008
+initial_m = 1.0
+[unchanged]
+test_case_seeds = [84000,84001,84002,84003,84004]
+correction_coefficients_bounds = [-4.0,4.0]
+network_checkpoints_retrained = false

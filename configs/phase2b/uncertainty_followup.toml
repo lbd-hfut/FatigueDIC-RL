@@ -1,0 +1,17 @@
+case = "phase2a_shared_registration_followup"
+[geometry]
+nx = 6
+ny = 3
+seed = 19
+[observation]
+count = 16
+[optimization]
+max_nfev = 120
+[calibration]
+sigma_mm = 0.00005
+first_seed = 22000
+seeds = 100
+workers = 4
+profile_seed = 22000
+bootstrap_first_seed = 23000
+bootstrap_seeds = 16
